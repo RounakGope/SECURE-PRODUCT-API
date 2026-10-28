@@ -2,7 +2,6 @@
 
 A role-based product management REST API built with Spring Boot, JWT authentication, PostgreSQL, Redis caching, email OTP verification, and audit logging. Docker Compose is used to run the API and its infrastructure locally.
 
-> **Verification note:** This README is based on the supplied `pom.xml` and controller screenshots. Confirm the product controller's class-level `@RequestMapping`, DTO fields, exact response codes, and Docker image versions against the final branch before submission.
 
 ## Tech stack
 
@@ -30,7 +29,7 @@ A role-based product management REST API built with Spring Boot, JWT authenticat
 - Custom method-level authorization annotation.
 - Product CRUD with Bean Validation.
 - Admin-only create/update/delete; authenticated users can read products.
-- Email OTP generation and verification.
+- OTP generation and verification.
 - Redis caching for product list and product-by-ID reads, with a 60-second TTL.
 - Cache eviction after successful product mutations.
 - Audit logging to a separate `audit_log` table for mutating product operations.
@@ -83,11 +82,35 @@ POSTGRES_PASSWORD=replace_with_a_database_password
 REDIS_TIMEOUT=500ms
 ```
 
-This is an illustrative subset, not a replacement for the repository's complete `.env.example`. Keep all required variables from that file, including mail/SMTP configuration if needed for OTP delivery. Make sure values and names match `compose.yaml` and Spring configuration.
+### 3. Generate a JWT secret
 
-**Never commit `.env` or real secrets.** Commit `.env.example` with placeholders only. Rotate any secret that was previously pushed to a public repository; deleting the file in a later commit does not remove it from Git history.
+Generate a unique 32-byte random secret.
 
-### 3. Validate and start the stack
+**Windows PowerShell**
+```powershell
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+$rng.GetBytes($bytes)
+$secret = [Convert]::ToBase64String($bytes)
+$rng.Dispose()
+"JWT_SECRET=$secret"
+```
+
+**Linux / macOS**
+```bash
+openssl rand -base64 32
+```
+
+Copy the generated value into `.env`, for example:
+
+```dotenv
+JWT_SECRET=paste_generated_secret_here
+JWT_EXPIRATION_DURATION=600
+```
+
+Ensure the secret format matches the application's JWT key-loading code. Never commit `.env` or real secrets; keep `.env.example` limited to placeholders.
+
+### 4. Validate and start the stack
 
 Run from the repository root:
 
@@ -105,16 +128,15 @@ docker compose logs -f api
 
 Use the actual service names defined in `compose.yaml` if they differ.
 
-### 4. Access the API
+### 5. Access the API
 
 Assuming `APP_PORT=8080`:
 
 - API base URL: `http://localhost:8080`
-- Swagger UI, if enabled: `http://localhost:8080/swagger-ui/index.html`
 
-If the Compose file defines a frontend service, access it at the host port mapped by that service. The backend can also be tested directly using Postman.
+The Compose file defines a frontend service, access it at the host port mapped by that service. The backend can also be tested directly using Postman.
 
-### 5. Demo admin
+### 6. Demo admin
 
 Set `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD` in `.env`. The initializer creates an admin only when both values are configured and the email does not already exist. If the email already exists, it skips initialization rather than changing that account's role or password.
 
@@ -123,8 +145,6 @@ Log in using `POST /api/auth/login`. Keep demo credentials private or use dedica
 ## API contract
 
 Example base URL: `http://localhost:8080`
-
-The authentication routes below are visible in the provided `AuthController` screenshot. Product routes are based on the product method mappings shown; confirm the class-level mapping in `ProductController`.
 
 ### Authentication endpoints
 
@@ -229,7 +249,7 @@ Product mutation audit events are intended to be recorded in the separate `audit
 
 ## Postman collection
 
-Import `postman/Secure-Product-API.postman_collection.json` into Postman.
+Import `postman/Secure-Product.postman_collection.json` into Postman.
 
 Collection variables include:
 
@@ -246,24 +266,6 @@ Recommended test flow:
 3. As `ADMIN`, create, list, fetch, update, and delete products.
 4. As `USER`, verify product reads work and mutations are denied.
 5. Test OTP generation and verification if email delivery is configured.
-
-The collection's routes and request bodies are based on screenshots and typical DTO fields. Adjust them if the actual DTOs or controller mappings differ.
-
-## Assignment goals and implementation summary
-
-| Assignment goal | Implementation to demonstrate |
-|---|---|
-| JWT authentication with `ADMIN` and `USER` roles | JWT login and role-aware Spring Security authorization |
-| Custom method-level authorization annotation | Custom annotation used for method-level access checks |
-| Product CRUD with Bean Validation | Create/list/get/update/delete endpoints and validated request DTOs |
-| Audit logging | AOP/interceptor-based mutation audit records in `audit_log` |
-| Redis read caching | Product list and get-by-ID caching with 60-second TTL |
-| Cache invalidation | Eviction after successful product mutations |
-| Dockerization | Multi-stage backend Dockerfile and Compose services for API, PostgreSQL, and Redis |
-| Postman demonstration | Importable collection for authentication, CRUD, and role-based checks |
-| Documentation | API contract, role matrix, caching strategy, and local startup guide |
-
-This table maps the assignment requirements to the intended project design. Confirm each item against the final branch before submission.
 
 ## Troubleshooting
 
