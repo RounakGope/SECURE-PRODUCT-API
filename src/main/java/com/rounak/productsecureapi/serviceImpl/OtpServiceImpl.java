@@ -49,11 +49,9 @@ public class OtpServiceImpl implements OtpService {
                 "purpose", purpose.name()
         );
 
-        // Store the hash and set its five-minute expiry.
         redisTemplate.opsForHash().putAll(key, data);
         redisTemplate.expire(key, OTP_TTL);
 
-        // Development only: never log real OTPs in production.
         System.out.println(
                 "[DEV OTP] Purpose: " + purpose
                         + " | Email: " + normalizedEmail
@@ -108,7 +106,6 @@ public class OtpServiceImpl implements OtpService {
             return false;
         }
 
-        // Correct OTP: consume it so it cannot be reused.
         redisTemplate.delete(key);
         return true;
     }

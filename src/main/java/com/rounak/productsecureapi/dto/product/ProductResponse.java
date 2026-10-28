@@ -1,7 +1,5 @@
 package com.rounak.productsecureapi.dto.product;
 
-import lombok.Getter;
-
 import java.math.BigDecimal;
 
 public record ProductResponse(

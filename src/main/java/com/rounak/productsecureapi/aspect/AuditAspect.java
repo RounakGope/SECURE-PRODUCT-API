@@ -94,13 +94,11 @@ public class AuditAspect {
 
     private String extractEntityId(Object result, Object[] args) {
 
-        // Handle ProductResponse and other Java records.
         if (result instanceof com.rounak.productsecureapi.dto.product.ProductResponse response
                 && response.id() != null) {
             return response.id().toString();
         }
 
-        // Fallback for regular objects exposing getId().
         if (result != null) {
             try {
                 Method getId = result.getClass().getMethod("getId");
@@ -110,11 +108,10 @@ public class AuditAspect {
                     return id.toString();
                 }
             } catch (ReflectiveOperationException ignored) {
-                // No public getId() method.
+
             }
         }
 
-        // Fallback for methods receiving an ID directly.
         if (args != null && args.length > 0) {
             Object firstArg = args[0];
 
