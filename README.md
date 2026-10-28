@@ -249,7 +249,7 @@ Product mutation audit events are intended to be recorded in the separate `audit
 
 ## Postman collection
 
-Import `postman/Secure-Product.postman_collection.json` into Postman.
+Import `Secure-Product.postman_collection.json` into Postman.
 
 Collection variables include:
 
