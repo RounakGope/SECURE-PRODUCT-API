@@ -8,6 +8,8 @@ services:
     environment:
       SERVER_PORT: 8080
 
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-}
       # JWT configuration
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_DURATION: ${JWT_EXPIRATION_DURATION:-600}
