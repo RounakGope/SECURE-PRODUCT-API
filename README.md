@@ -1,334 +1,302 @@
-# Product Secure API
+# Secure Product API
 
-A full-stack product inventory application built with **Spring Boot, Spring Security, JWT, PostgreSQL, Redis, React, and Docker Compose**.
+A role-based product management REST API built with Spring Boot, JWT authentication, PostgreSQL, Redis caching, email OTP verification, and audit logging. Docker Compose is used to run the API and its infrastructure locally.
 
-The project demonstrates authenticated product management, role-based authorization, caching, OTP-based email verification, and audit logging.
+> **Verification note:** This README is based on the supplied `pom.xml` and controller screenshots. Confirm the product controller's class-level `@RequestMapping`, DTO fields, exact response codes, and Docker image versions against the final branch before submission.
 
-> **Before running:** Review `.env.example` and the actual `compose.yaml` in this repository. Fill in the required local environment values. Never commit `.env` or real secrets.
+## Tech stack
 
-## 1. Run the application first
+| Technology | Version / details |
+|---|---|
+| Java | 25 |
+| Spring Boot | 4.1.2 |
+| Lombok | 1.18.42 |
+| Spring Data JPA | Managed by Spring Boot parent |
+| Spring Security | Managed by Spring Boot parent |
+| Spring Data Redis | Managed by Spring Boot parent |
+| Spring Validation | Managed by Spring Boot parent |
+| Spring Mail | Managed by Spring Boot parent |
+| OAuth2 Resource Server | Managed by Spring Boot parent |
+| Spring AOP | Explicitly declared as `7.1.0-M2` in the current POM |
+| PostgreSQL | Version defined by Docker configuration |
+| Redis | Version defined by Docker configuration |
+| Maven | Build tool; version is not pinned in `pom.xml` |
+| Docker Compose | Local container orchestration |
 
-### Prerequisites
+## Features
 
-- Docker Desktop (with Docker Compose) installed and running
+- JWT-based authentication.
+- `ADMIN` and `USER` roles with role-aware authorization.
+- Custom method-level authorization annotation.
+- Product CRUD with Bean Validation.
+- Admin-only create/update/delete; authenticated users can read products.
+- Email OTP generation and verification.
+- Redis caching for product list and product-by-ID reads, with a 60-second TTL.
+- Cache eviction after successful product mutations.
+- Audit logging to a separate `audit_log` table for mutating product operations.
+- Docker Compose services for Spring Boot, PostgreSQL, and Redis.
+- Demo admin initialization from environment variables when configured and when the email does not already exist.
+
+Only describe a feature as complete if it is present and working in the final branch.
+
+## Prerequisites
+
 - Git
-- A copy of this repository
+- Docker Engine or Docker Desktop with Docker Compose v2
 
-Node.js is not required to run the containerized frontend, because Docker builds it from the frontend source.
+When using Docker Compose, you do not need to install Java, Maven, PostgreSQL, or Redis locally.
 
-### Step 1 — Clone the repository
+## Run with Docker Compose
+
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/RounakGope/SECURE-PRODUCT-API.git
 cd SECURE-PRODUCT-API
 ```
 
-### Step 2 — Create your local environment file
+### 2. Create `.env` from `.env.example`
 
-Copy the example file:
+Linux / macOS:
 
-**PowerShell**
-```powershell
-Copy-Item .env.example .env
-```
-
-**macOS / Linux**
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and set the values required by your `compose.yaml` and `application.properties`, including the PostgreSQL database name, username, password, JWT secret, and any other required configuration.
+Windows PowerShell:
 
-- Use a strong, unique JWT secret.
-- Do not commit `.env`.
-- `.env.example` should contain placeholders, not real credentials.
-- If email delivery uses SMTP, configure the relevant SMTP variables as required by your backend.
+```powershell
+Copy-Item .env.example .env
+```
 
-### Step 3 — Build and start the services
+Open `.env` and replace placeholders. Example variable names from the Compose configuration include:
 
-Run this command from the repository root, where `compose.yaml` is located:
+```dotenv
+APP_PORT=8080
+DEMO_ADMIN_EMAIL=admin@example.com
+DEMO_ADMIN_PASSWORD=replace_with_a_strong_password
+JWT_SECRET=replace_with_a_long_random_secret
+JWT_EXPIRATION_DURATION=600
+POSTGRES_DB=productsecure
+POSTGRES_USER=appuser
+POSTGRES_PASSWORD=replace_with_a_database_password
+REDIS_TIMEOUT=500ms
+```
+
+This is an illustrative subset, not a replacement for the repository's complete `.env.example`. Keep all required variables from that file, including mail/SMTP configuration if needed for OTP delivery. Make sure values and names match `compose.yaml` and Spring configuration.
+
+**Never commit `.env` or real secrets.** Commit `.env.example` with placeholders only. Rotate any secret that was previously pushed to a public repository; deleting the file in a later commit does not remove it from Git history.
+
+### 3. Validate and start the stack
+
+Run from the repository root:
 
 ```bash
+docker compose config
 docker compose up --build -d
 ```
 
-This builds the application images and starts the services defined in Compose.
-
-Check their status:
+Check services and logs:
 
 ```bash
 docker compose ps
+docker compose logs -f api
 ```
+
+Use the actual service names defined in `compose.yaml` if they differ.
+
+### 4. Access the API
+
+Assuming `APP_PORT=8080`:
+
+- API base URL: `http://localhost:8080`
+- Swagger UI, if enabled: `http://localhost:8080/swagger-ui/index.html`
+
+If the Compose file defines a frontend service, access it at the host port mapped by that service. The backend can also be tested directly using Postman.
+
+### 5. Demo admin
+
+Set `DEMO_ADMIN_EMAIL` and `DEMO_ADMIN_PASSWORD` in `.env`. The initializer creates an admin only when both values are configured and the email does not already exist. If the email already exists, it skips initialization rather than changing that account's role or password.
+
+Log in using `POST /api/auth/login`. Keep demo credentials private or use dedicated non-sensitive demo credentials.
+
+## API contract
+
+Example base URL: `http://localhost:8080`
+
+The authentication routes below are visible in the provided `AuthController` screenshot. Product routes are based on the product method mappings shown; confirm the class-level mapping in `ProductController`.
+
+### Authentication endpoints
+
+| Method | Endpoint | Purpose | Access |
+|---|---|---|---|
+| `POST` | `/api/auth/register` | Register a user | Public |
+| `POST` | `/api/auth/login` | Log in and receive a JWT | Public |
+| `POST` | `/api/auth/generate-otp` | Generate email verification OTP | Authenticated principal appears to be used |
+| `POST` | `/api/auth/verify-email` | Verify email using OTP | Confirm security configuration |
+
+Example registration request (confirm exact field names in `UserRegistrationRequest`):
+
+```json
+{
+  "name": "Demo User",
+  "email": "user@example.com",
+  "password": "StrongPassword123!"
+}
+```
+
+Example login request (confirm exact field names in `LoginRequest`):
+
+```json
+{
+  "email": "user@example.com",
+  "password": "StrongPassword123!"
+}
+```
+
+Use the returned JWT on protected endpoints:
+
+```http
+Authorization: Bearer <JWT>
+```
+
+The `generate-otp` controller method accepts a `java.security.Principal`, so it appears to identify the current user from the authenticated principal rather than a request body.
+
+Example verification request (confirm exact fields in `OtpVerificationRequest`):
+
+```json
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+```
+
+### Product endpoints
+
+| Method | Endpoint | Purpose | Role |
+|---|---|---|---|
+| `POST` | `/api/products` | Create product | `ADMIN` |
+| `GET` | `/api/products` | List products | `USER` / `ADMIN` |
+| `GET` | `/api/products/{id}` | Get product by ID | `USER` / `ADMIN` |
+| `PUT` | `/api/products/{id}` | Update product | `ADMIN` |
+| `DELETE` | `/api/products/{id}` | Delete product | `ADMIN` |
+
+Confirm that `/api/products` matches the class-level mapping in your controller.
+
+Example create request (confirm exact fields in `ProductCreate`):
+
+```json
+{
+  "name": "Wireless Mouse",
+  "description": "Ergonomic wireless mouse with adjustable DPI.",
+  "price": 799.00,
+  "stock": 50,
+  "category": "Electronics"
+}
+```
+
+Update requests use `ProductUpdate`; inspect that DTO for its exact fields and validation constraints. Product controller responses use `ProductResponse` and `List<ProductResponse>`.
+
+### Role matrix
+
+| Operation | ADMIN | USER |
+|---|---:|---:|
+| Register / log in | Yes | Yes |
+| Read product list | Yes | Yes |
+| Read product by ID | Yes | Yes |
+| Create product | Yes | No |
+| Update product | Yes | No |
+| Delete product | Yes | No |
+
+### Validation and errors
+
+- Invalid request fields should be rejected by validation.
+- Missing or invalid JWT should prevent access to protected routes.
+- A `USER` attempting an admin-only mutation should be denied.
+- A missing product should return the status configured by the controller/service.
+- Confirm exact status codes and error response JSON against the running application before treating them as a strict API contract.
+
+## Redis caching strategy
+
+- Cache the product list and individual product reads by ID.
+- Use a 60-second time-to-live (TTL).
+- Evict or invalidate relevant cache entries after successful product create/update/delete operations.
+- PostgreSQL remains the source of truth; Redis is not permanent product storage.
+
+## Audit logging
+
+Product mutation audit events are intended to be recorded in the separate `audit_log` table. The assignment calls for actor/user ID, action, timestamp, and before/after state. Verify the final audit entity and actual stored fields against the implementation.
+
+## Postman collection
+
+Import `postman/Secure-Product-API.postman_collection.json` into Postman.
+
+Collection variables include:
+
+- `baseUrl`: `http://localhost:8080`
+- `token`: populated by a login request if the response contains `token` or `accessToken`
+- `adminEmail` / `adminPassword`: use the credentials configured in `.env`
+- `userEmail` / `userPassword`: use a registered normal user
+- `productId`: replace with an existing product ID
+
+Recommended test flow:
+
+1. Register a normal user, or use the configured demo admin.
+2. Log in and capture the JWT.
+3. As `ADMIN`, create, list, fetch, update, and delete products.
+4. As `USER`, verify product reads work and mutations are denied.
+5. Test OTP generation and verification if email delivery is configured.
+
+The collection's routes and request bodies are based on screenshots and typical DTO fields. Adjust them if the actual DTOs or controller mappings differ.
+
+## Assignment goals and implementation summary
+
+| Assignment goal | Implementation to demonstrate |
+|---|---|
+| JWT authentication with `ADMIN` and `USER` roles | JWT login and role-aware Spring Security authorization |
+| Custom method-level authorization annotation | Custom annotation used for method-level access checks |
+| Product CRUD with Bean Validation | Create/list/get/update/delete endpoints and validated request DTOs |
+| Audit logging | AOP/interceptor-based mutation audit records in `audit_log` |
+| Redis read caching | Product list and get-by-ID caching with 60-second TTL |
+| Cache invalidation | Eviction after successful product mutations |
+| Dockerization | Multi-stage backend Dockerfile and Compose services for API, PostgreSQL, and Redis |
+| Postman demonstration | Importable collection for authentication, CRUD, and role-based checks |
+| Documentation | API contract, role matrix, caching strategy, and local startup guide |
+
+This table maps the assignment requirements to the intended project design. Confirm each item against the final branch before submission.
+
+## Troubleshooting
 
 View logs:
 
 ```bash
-docker compose logs -f
-```
-
-Or view one service at a time (service names must match `compose.yaml`):
-
-```bash
-docker compose logs -f frontend
 docker compose logs -f api
 docker compose logs -f postgres
 docker compose logs -f redis
 ```
 
-### Step 4 — Open the application
-
-With the example port mappings used by this project:
-
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:8080
-- **Swagger UI:** http://localhost:8080/swagger-ui/index.html
-
-If you change the host port mappings in `compose.yaml`, use the ports configured there.
-
-### Step 5 — Try the application
-
-1. Register an account from the frontend.
-2. Log in with that account.
-3. View the product inventory.
-4. Test product creation, editing, and deletion according to the logged-in user's role.
-5. Test OTP generation and email verification if enabled in the current backend configuration.
-6. Open Swagger UI to inspect and try the API endpoints. For protected endpoints, authenticate using the JWT issued by the login endpoint.
-
-### Stop the application
-
-Stop and remove the containers:
-
-```bash
-docker compose down
-```
-
-To also delete the PostgreSQL named volume and its stored database data, run the following only if you intentionally want to reset the local database:
-
-```bash
-docker compose down -v
-```
-
-**Warning:** `-v` deletes the database volume and its data.
-
----
-
-## 2. Architecture and request flow
-
-```text
-Browser
-  |
-  | http://localhost:5173
-  v
-React frontend served by Nginx
-  |
-  | /api/... forwarded inside the Docker network
-  v
-Spring Boot REST API (api:8080)
-  |                         |
-  |                         +--> Redis (cache / OTP, where configured)
-  |
-  +--> PostgreSQL (persistent application data)
-  |
-  +--> Audit logging (database audit table)
-```
-
-### Request flow
-
-1. The user opens the React frontend.
-2. The user registers or logs in.
-3. The backend validates credentials and issues a JWT.
-4. The frontend sends the token in the `Authorization: Bearer <token>` header for protected API requests.
-5. Spring Security validates the token and enforces authorization rules.
-6. Product requests are handled by the backend and persisted in PostgreSQL.
-7. Redis can serve cached product data and store short-lived OTP data according to the implemented service logic and TTL settings.
-8. The audit aspect records the actions configured for auditing.
-9. Nginx serves the frontend and proxies `/api/` requests to the backend container, so the browser can use the frontend's origin.
-
-Inside Docker Compose, services should communicate using their **Compose service names** (for example, `api`, `postgres`, and `redis`) rather than `localhost`. `localhost` inside a container refers to that same container.
-
----
-
-## 3. Technology stack
-
-### Backend
-- Java and Spring Boot
-- Spring Security
-- JWT bearer-token authentication
-- Spring Data JPA
-- PostgreSQL
-- Redis
-- Spring AOP for configured audit logging
-- OTP-based email verification flow
-- Springdoc / Swagger UI for API documentation
-
-### Frontend
-- React
-- Vite
-- Axios for API requests
-- Responsive inventory dashboard
-
-### DevOps
-- Docker
-- Docker Compose
-- Multi-stage backend and frontend builds
-- Nginx to serve the frontend production build and proxy API requests
-
----
-
-## 4. Main features
-
-- User registration and login
-- JWT-based authentication
-- Role-based access control for protected operations
-- Product inventory listing and management
-- Product create, update, and delete operations, subject to permissions
-- Redis caching for configured product queries
-- Configurable cache TTL and Redis eviction policy
-- OTP generation and email verification flow
-- Audit logging for actions covered by the audit aspect
-- Swagger UI for exploring the API
-- Docker Compose setup for running the application and its supporting services
-
-The exact available endpoints and authorization rules are defined by the backend controllers and Spring Security configuration in this repository.
-
----
-
-## 5. API documentation and authentication
-
-When the backend is running, open:
-
-- Swagger UI: http://localhost:8080/swagger-ui/index.html
-- OpenAPI JSON (if enabled): http://localhost:8080/v3/api-docs
-
-Use the login endpoint to obtain a JWT. For protected requests, send:
-
-```http
-Authorization: Bearer YOUR_JWT_TOKEN
-```
-
-Replace `YOUR_JWT_TOKEN` with the token returned by your API. Do not paste real tokens into GitHub issues, screenshots, or public documentation.
-
-For exact endpoint paths, request payloads, response schemas, and required roles, use Swagger UI or inspect the controller and DTO classes.
-
----
-
-## 6. Configuration
-
-The backend reads configuration from Spring properties and environment variables. The exact variable names required at runtime are the ones referenced by `application.properties` and `compose.yaml`.
-
-Common configuration categories include:
-
-| Category | Purpose |
-|---|---|
-| Application port | Port used by the Spring Boot API |
-| PostgreSQL | Database URL, database name, username, and password |
-| Redis | Redis host, port, and timeout |
-| JWT | Signing secret and token expiration |
-| Email / OTP | SMTP configuration if real email delivery is enabled |
-
-For local Docker Compose, the API container should connect to PostgreSQL using the Compose service hostname and container port (commonly `postgres:5432`), and Redis using its Compose service hostname and container port (commonly `redis:6379`). The host machine's published ports are for access from outside the Compose network.
-
-Do not use production credentials in a public repository. Use secret management appropriate to the deployment environment.
-
----
-
-## 7. Development workflow
-
-### Run the frontend outside Docker (optional)
-
-If you want to work on the React frontend directly, install a compatible Node.js version, then run:
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-The Vite development proxy in `frontend/vite.config.js` should point to the backend address used for local development. Check that file before running the frontend this way.
-
-### Rebuild after code changes
-
-After changing backend or frontend source code, rebuild the relevant images:
+Rebuild after code changes:
 
 ```bash
 docker compose up --build -d
 ```
 
-Follow the logs to diagnose startup or runtime issues:
+Validate Compose configuration:
 
 ```bash
-docker compose logs --tail=100 api
-docker compose logs --tail=100 frontend
+docker compose config
 ```
 
----
-
-## 8. Repository structure
-
-```text
-SECURE-PRODUCT-API/
-├── src/                   # Spring Boot backend source and resources
-├── frontend/
-│   ├── src/               # React application
-│   ├── Dockerfile          # Frontend production image
-│   ├── nginx.conf          # Static serving and API proxy
-│   ├── package.json
-│   ├── package-lock.json
-│   └── vite.config.js
-├── Dockerfile              # Backend image
-├── compose.yaml             # Application and supporting services
-├── .dockerignore
-├── .gitignore
-├── .env.example             # Safe template; no real secrets
-├── pom.xml
-└── README.md
-```
-
-This tree describes the intended layout. Keep it aligned with the actual files in the repository.
-
----
-
-## 9. Troubleshooting
-
-### A service does not start
+**Destructive reset:** The following removes named volumes, including persisted PostgreSQL data. Use only if you intentionally want a fresh database.
 
 ```bash
-docker compose ps
-docker compose logs --tail=150 api
-docker compose logs --tail=150 frontend
+docker compose down -v
+docker compose up --build -d
 ```
 
-Check the logs for missing environment variables, build failures, database connection errors, or port conflicts.
+## Security notes
 
-### The frontend loads but API calls fail
-
-- Check that the `api` service is running.
-- Check the Nginx `location /api/` proxy configuration in `frontend/nginx.conf`.
-- Confirm that the proxy target uses the actual backend Compose service name and container port.
-- Check browser Developer Tools → Network for the failed request and response.
-- Inspect backend logs for authentication errors or endpoint mismatches.
-
-### Database or Redis connection errors
-
-From inside the API container, use the Compose service hostname and container port—not `localhost`. Verify the service names, health checks, credentials, and environment variables in `compose.yaml`.
-
-### Port already in use
-
-If a host port is already occupied, update the host side of the relevant port mapping in `compose.yaml`, then restart the services.
-
----
-
-## 10. Security notes
-
-- Never commit `.env`, JWT secrets, database passwords, SMTP credentials, or real tokens.
-- Keep `.env.example` limited to placeholder values.
-- Rotate any credentials that were accidentally exposed in Git history.
-- Client-side UI checks are not a security boundary; enforce authorization in Spring Security and backend service/controller logic.
-- Use HTTPS and deployment-appropriate secret management when hosting publicly.
-- Treat OTPs and authentication tokens as sensitive information.
-
----
-
-## License
-
-Add a license file if you intend to grant others permission to reuse or modify this project. If no license is provided, do not assume the repository is open for unrestricted reuse.
+- Do not commit `.env`, SMTP passwords, JWT secrets, or real database passwords.
+- Use a long, randomly generated JWT secret.
+- Rotate any secret exposed in Git history.
+- Use dedicated demo credentials; never reuse personal passwords.
